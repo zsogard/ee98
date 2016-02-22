@@ -1,60 +1,49 @@
 import com.sun.net.httpserver.Filter;
 import com.sun.net.httpserver.HttpExchange;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 
-public class ParameterFilter extends Filter {
+public class ParameterFilter extends Filter
+{
 
     @Override
-    public String description() {
+    public String description()
+    {
         return "Parses the requested URI for parameters";
     }
 
     @Override
     public void doFilter(HttpExchange exchange, Chain chain)
-        throws IOException {
-        parseGetParameters(exchange);
-        parsePostParameters(exchange);
+        throws IOException
+    {
+        if ("post".equalsIgnoreCase(exchange.getRequestMethod()))
+        {
+        	parsePostParameters(exchange);
+        }
         chain.doFilter(exchange);
     }
 
-    private void parseGetParameters(HttpExchange exchange)
-        throws UnsupportedEncodingException {
-
-        Map parameters = new HashMap();
-        URI requestedUri = exchange.getRequestURI();
-        String query = requestedUri.getRawQuery();
-        parseQuery(query, parameters);
-        exchange.setAttribute("parameters", parameters);
-    }
-
     private void parsePostParameters(HttpExchange exchange)
-        throws IOException {
-
-        if ("post".equalsIgnoreCase(exchange.getRequestMethod())) {
-            @SuppressWarnings("unchecked")
-            Map parameters =
-                (Map)exchange.getAttribute("parameters");
-            InputStreamReader isr =
-                new InputStreamReader(exchange.getRequestBody(),"utf-8");
-            BufferedReader br = new BufferedReader(isr);
-            String query = br.readLine();
+        throws IOException
+    {		
+            Map parameters = new LinkedHashMap();
+            URI requestedUri = exchange.getRequestURI();
+            String query = requestedUri.getRawQuery();
             parseQuery(query, parameters);
-        }
+            exchange.setAttribute("parameters", parameters);
     }
 
      @SuppressWarnings("unchecked")
      private void parseQuery(String query, Map parameters)
-         throws UnsupportedEncodingException {
+         throws UnsupportedEncodingException
+     {
 
          if (query != null) {
              String pairs[] = query.split("[&]");
