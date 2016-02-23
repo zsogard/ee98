@@ -33,6 +33,7 @@ public class ParameterFilter extends Filter
     private void parsePostParameters(HttpExchange exchange)
         throws IOException
     {		
+    		//create key/value map, parse query string, add map to the httpexchange
             Map parameters = new LinkedHashMap();
             URI requestedUri = exchange.getRequestURI();
             String query = requestedUri.getRawQuery();

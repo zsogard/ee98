@@ -8,7 +8,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +25,12 @@ public class Server
 {
     public static void main(String[] args) throws Exception
     {
+    	//initialize log
+    	File f = new File("/home/zach/Desktop/www/log.txt");
+    	f.delete();
+    	f.createNewFile();
+    	
+    	//start server at port 8000, "/"
         HttpServer server = HttpServer.create(new InetSocketAddress(8000), 0);
         HttpContext context = server.createContext("/", new MyHandler());
         context.getFilters().add(new ParameterFilter());
@@ -32,7 +41,7 @@ public class Server
 
     static class MyHandler implements HttpHandler
     {
-        private final String path = "/home/zach/Desktop/www/file.txt";
+        private final String path = "/home/zach/Desktop/www/log.txt";
         @Override
         public void handle(HttpExchange t) throws IOException
         {
@@ -62,7 +71,9 @@ public class Server
               OutputStream os = t.getResponseBody();
               os.write(response.getBytes());
               os.close();
-            } else {
+            }
+            else
+            {
               // Object exists and is a file: accept with response code 200.
               t.sendResponseHeaders(200, 0);
               OutputStream os = t.getResponseBody();
@@ -81,9 +92,16 @@ public class Server
         private void handlePost(HttpExchange t) throws IOException
         {
         	System.out.println("Handling POST request.");
+            String response = "";
+
+     	    //get current date and time
+     	    DateFormat dateFormat = new SimpleDateFormat("MM/dd/yyyy HH:mm:ss");
+     	    Date date = new Date();
+     	    response += "(" + dateFormat.format(date) + ") ";
+     	    
+     	    //iterate through map
             Map params = (Map)t.getAttribute("parameters");
             Iterator iterator = params.keySet().iterator();
-            String response = "";
             while (iterator.hasNext())
             {
                 String key = iterator.next().toString();
@@ -91,6 +109,8 @@ public class Server
                 response += key + ": " + value + " | ";
                 System.out.println(key + ": " + value);
             }
+            
+            //append key/value pairs to log file
             if (!response.isEmpty())
             {
 	            List<String> lines = Arrays.asList(response);
@@ -98,7 +118,7 @@ public class Server
 	            Files.write(file, lines, Charset.forName("UTF-8"), StandardOpenOption.APPEND);
             }
             
-            //String response = "This is the response";
+            //echo the response back to the sender
             t.sendResponseHeaders(200, response.length());
             OutputStream os = t.getResponseBody();
             os.write(response.getBytes());
