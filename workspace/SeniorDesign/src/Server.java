@@ -94,10 +94,12 @@ public class Server
         	System.out.println("Handling POST request.");
             String response = "";
 
-     	    //get current date and time
+     	    //Going to let Arduino send time rather than log time received
+            /*
      	    DateFormat dateFormat = new SimpleDateFormat("MM/dd/yyyy HH:mm:ss");
      	    Date date = new Date();
      	    response += "(" + dateFormat.format(date) + ") ";
+     	    */
      	    
      	    //iterate through map
             Map params = (Map)t.getAttribute("parameters");

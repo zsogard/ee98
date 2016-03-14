@@ -1,12 +1,10 @@
 #include <Bridge.h>
-#include <YunClient.h>
+#include <HttpClient.h>
 #include <FileIO.h>
 #include "LowPower.h"
 
-IPAddress server(10,3,14,64);
-#define PORT 8000
-
-YunClient client;
+// Initialize the client library
+HttpClient client;
 String params = "";
 String filename = "/mnt/sd/log.txt";
 char path[16];
@@ -20,7 +18,9 @@ boolean logDirty = false;
 void setup()
 {
   Serial.begin(9600);
-  //while (!Serial);
+  while (!Serial);
+  Serial.println("Waiting a few seconds");
+  delay(10000); //not sure if this has to be this long - needed so that Bridge.begin() doesn't hang
   Serial.println("Starting Bridge");
   Bridge.begin();
   Serial.println("Starting Filesystem");
@@ -34,9 +34,6 @@ void setup()
 
 void loop()
 {
-  // Enter power down state for 8 s with ADC and BOD module disabled
-  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
-
   //wake up and take readings
   //temp
   float temp_voltage = (analogRead(tempPin)*5/1023.0)*1000;
@@ -54,45 +51,34 @@ void loop()
   Serial.print(" lux");
 
   //moisture
-  int moist_val = analogRead(moistPin);
+  int moisture = analogRead(moistPin);
   Serial.print("\tMoisture: ");
-  Serial.println(moist_val);
+  Serial.println(moisture);
 
   //Create params string
   String time = getTimeStamp();
   String temp_str = String(temp, 2);     
   String brightness_str = String(brightness);
-  params = "time=" + time + "&temp=" + temp_str + "&brightness=" + brightness_str;
+  String moist_str = String(moisture);
+  params = "time=" + time + "&temp=" + temp_str + "&brightness=" + brightness_str + "&moisture=" + moist_str;
 
-  //connect to server
-  if (client.connect(server, PORT))
+  //Check if data from log needs to be written
+  if (logDirty)
   {
-    Serial.println("Successfully connected");
-    
-    //Check if data from log needs to be written
-    if (logDirty)
+    Serial.println("Flushing log.");
+    //Flush lines from log and reset log
+    File logFile = FileSystem.open(path, FILE_READ);
+    //If successful, remove log
+    if(flushFile(logFile))
     {
-      //Flush lines from log and reset log
-      File logFile = FileSystem.open(path, FILE_READ);
-      flushFile(logFile, client);
       FileSystem.remove(path);
       logDirty = false;
     }
-
-    //Create and send HTTP POST
-    client.println("POST /test HTTP/1.1");
-    client.println("Host: thinkpad.local");
-    client.print("Content-length:");
-    client.println(params.length());
-    client.println("Connection: Close");
-    client.println("Content-Type: application/x-www-form-urlencoded");
-    client.println();
-    client.println(params);
-    client.stop(); //disconnect from server
   }
-  else
+
+  if (httpPost(params) != 0)
   {
-    //Write data locally to SD card instead
+    //If unsuccessful, write data locally to SD card instead
     Serial.println("Connection failed, writing to SD card");
     File logFile = FileSystem.open(path, FILE_APPEND);
     if (logFile)
@@ -107,35 +93,64 @@ void loop()
       Serial.println("Failed to write to SD card.");
     }
   }
+
+  // Enter power down state for 8 s with ADC and BOD module disabled
+  Serial.println("Sleepy time!");
+  Serial.flush();
+  Serial.end();
+  //LowPower.powerDown(SLEEP_1S, ADC_ON, BOD_ON);
+  delay(8000);
+  Serial.begin(9600);
+  Serial.println("We made it!");
 }
 
-void flushFile(File file, YunClient client)
-{ 
+boolean flushFile(File file)
+{
+  boolean success = true;
   if (file)
   {
     // Send one line at a time
-    String params = "";
+    String line = "";
     while (file.available() != 0)
     {     
-      params = file.readStringUntil('\n');        
-      if (params == "") break;        
+      line = file.readStringUntil('\n');        
+      if (line.equals("")) break;        
       //Send HTTP POST
-      client.println("POST /test HTTP/1.1");
-      client.println("Host: thinkpad.local");
-      client.print("Content-length:");
-      client.println(params.length());
-      client.println("Connection: Close");
-      client.println("Content-Type: application/x-www-form-urlencoded");
-      client.println();
-      client.println(params);
-      Serial.println(params);
+      if (httpPost(line) != 0)
+      {
+        success = false;
+        break;
+      }
     }
     file.close();
   }
   else
   {
     Serial.println("Failed to open file.");
+    success = false;
   }
+
+  return success;
+}
+
+int httpPost(String params)
+{
+  String httpBody = ""; //"key1=value1" gives a null query, not sure why
+  String httpDestination = "http://10.3.13.187:8000?" + params;
+
+  int returnCode = client.post(httpDestination, httpBody);
+
+  // if there are incoming bytes available
+  // from the server, read them and print them:
+  while (client.available()) {
+    char c = client.read();
+    Serial.print(c);
+  }
+  Serial.flush();
+
+  Serial.println();
+  
+  return returnCode;
 }
 
 String getTimeStamp()
