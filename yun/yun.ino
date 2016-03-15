@@ -7,26 +7,25 @@ boolean debug = true; //true: Serial works, LowPower disabled
                       //false: Serial doesn't work, LowPower enabled
                       //TODO: find a way for both to work
 
-String ipaddr = "130.64.161.160";
+String ipaddr = "192.168.240.219";
 
 // Initialize the client library
 HttpClient client;
 String params = "";
-String filename = "/mnt/sd/log.txt";
-char path[16];
+String filename = "/mnt/sda1/arduino/www/log.txt";
+char path[30];
 
 int tempPin = A0;
 int lightPin = A1;
 float light_resistor = 1000.0;
 int moistPin = A2;
-boolean logDirty = false;
 
 void setup()
 {
   Serial.begin(9600);
   while (!Serial);
   Serial.println("Waiting a few seconds");
-  delay(10000); //not sure if needed to prevent Bridge.begin from hanging?
+  delay(5000); //not sure if needed to prevent Bridge.begin from hanging?
   Serial.println("Starting Bridge");
   Bridge.begin();
   Serial.println("Starting Filesystem");
@@ -42,6 +41,7 @@ void loop()
 {
   //wake up and take readings
   //temp
+  Serial.println(path);
   float temp_voltage = (analogRead(tempPin)*5/1023.0)*1000;
   float temp = (temp_voltage-500)/9.3;
   Serial.print("Temperature: ");
@@ -69,16 +69,19 @@ void loop()
   params = "time=" + time + "&temp=" + temp_str + "&brightness=" + brightness_str + "&moisture=" + moist_str;
 
   //Check if data from log needs to be written
-  if (logDirty)
+  if (FileSystem.exists(path))
   {
-    Serial.println("Flushing log.");
+    Serial.println("Attempting to flush log.");
     //Flush lines from log and reset log
-    File logFile = FileSystem.open("/mnt/sd/log.txt", FILE_READ);
+    File logFile = FileSystem.open(path, FILE_READ);
     //If successful, remove log
     if(flushFile(logFile))
     {
-      FileSystem.remove("/mnt/sd/log.txt");
-      logDirty = false;
+      FileSystem.remove(path);
+    }
+    else
+    {
+      Serial.println("Unable to flush log.");
     }
   }
 
@@ -86,12 +89,11 @@ void loop()
   {
     //If unsuccessful, write data locally to SD card instead
     Serial.println("Connection failed, writing to SD card");
-    File logFile = FileSystem.open("/mnt/sd/log.txt", FILE_APPEND);
+    File logFile = FileSystem.open(path, FILE_APPEND);
     if (logFile)
     {
-      logFile.println(params);
+      logFile.print(params + '\n'); //not using println because we don't want \r
       logFile.close();
-      logDirty = true;
       Serial.println(params);
     }
     else
@@ -99,16 +101,16 @@ void loop()
       Serial.println("Failed to write to SD card.");
     }
   }
-
-  Serial.println("Sleepy time!");
-  Serial.flush();
-
+  
   if (debug)
   {
+    Serial.println("Delay 8s");
     delay(8000);
   }
   else
   {
+    Serial.println("Sleepy time!");
+    Serial.flush();
     delay(1000);
     // Enter power down state for 8 s with ADC and BOD module disabled
     LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
@@ -125,7 +127,8 @@ boolean flushFile(File file)
     String line = "";
     while (file.available() != 0)
     {     
-      line = file.readStringUntil('\n');        
+      line = file.readStringUntil('\n');
+      Serial.println(line);       
       if (line.equals("")) break;        
       //Send HTTP POST
       if (httpPost(line) != 0)
@@ -145,17 +148,21 @@ boolean flushFile(File file)
   return success;
 }
 
+//returns 0 on success
 int httpPost(String params)
 {
+  Serial.println("Sending HTTP POST.");
   String httpBody = ""; //"key1=value1" gives a null query, not sure why
   String httpDestination = "http://" + ipaddr + ":8000?" + params;
 
   int returnCode = client.post(httpDestination, httpBody);
+  String response = "";
 
   // if there are incoming bytes available
   // from the server, read them and print them:
   while (client.available()) {
     char c = client.read();
+    response += c;
     Serial.print(c);
   }
   Serial.flush();
