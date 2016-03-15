@@ -3,6 +3,12 @@
 #include <FileIO.h>
 #include "LowPower.h"
 
+boolean debug = true; //true: Serial works, LowPower disabled
+                      //false: Serial doesn't work, LowPower enabled
+                      //TODO: find a way for both to work
+
+String ipaddr = "130.64.161.160";
+
 // Initialize the client library
 HttpClient client;
 String params = "";
@@ -20,7 +26,7 @@ void setup()
   Serial.begin(9600);
   while (!Serial);
   Serial.println("Waiting a few seconds");
-  delay(10000); //not sure if this has to be this long - needed so that Bridge.begin() doesn't hang
+  delay(10000); //not sure if needed to prevent Bridge.begin from hanging?
   Serial.println("Starting Bridge");
   Bridge.begin();
   Serial.println("Starting Filesystem");
@@ -67,11 +73,11 @@ void loop()
   {
     Serial.println("Flushing log.");
     //Flush lines from log and reset log
-    File logFile = FileSystem.open(path, FILE_READ);
+    File logFile = FileSystem.open("/mnt/sd/log.txt", FILE_READ);
     //If successful, remove log
     if(flushFile(logFile))
     {
-      FileSystem.remove(path);
+      FileSystem.remove("/mnt/sd/log.txt");
       logDirty = false;
     }
   }
@@ -80,7 +86,7 @@ void loop()
   {
     //If unsuccessful, write data locally to SD card instead
     Serial.println("Connection failed, writing to SD card");
-    File logFile = FileSystem.open(path, FILE_APPEND);
+    File logFile = FileSystem.open("/mnt/sd/log.txt", FILE_APPEND);
     if (logFile)
     {
       logFile.println(params);
@@ -94,13 +100,19 @@ void loop()
     }
   }
 
-  // Enter power down state for 8 s with ADC and BOD module disabled
   Serial.println("Sleepy time!");
   Serial.flush();
-  Serial.end();
-  //LowPower.powerDown(SLEEP_1S, ADC_ON, BOD_ON);
-  delay(8000);
-  Serial.begin(9600);
+
+  if (debug)
+  {
+    delay(8000);
+  }
+  else
+  {
+    delay(1000);
+    // Enter power down state for 8 s with ADC and BOD module disabled
+    LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+  }
   Serial.println("We made it!");
 }
 
@@ -136,7 +148,7 @@ boolean flushFile(File file)
 int httpPost(String params)
 {
   String httpBody = ""; //"key1=value1" gives a null query, not sure why
-  String httpDestination = "http://10.3.13.187:8000?" + params;
+  String httpDestination = "http://" + ipaddr + ":8000?" + params;
 
   int returnCode = client.post(httpDestination, httpBody);
 
