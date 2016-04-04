@@ -7,16 +7,14 @@ void setup()
   while (!Serial);
   pinMode(batteryReading, INPUT);
   pinMode(enable, OUTPUT);
-  digitalWrite(enable, HIGH);
 }
 
 void loop()
 {
-  
-  delay(100);
+  digitalWrite(enable, HIGH);
+  delay(1);
   int reading = analogRead(batteryReading);
-  Serial.println("analogread:" + String(reading));
-  float voltage = (float) reading * (5.0/1024.0);
+  float voltage = (float) reading * (5.0/1024.0) * 2;
   Serial.println(String(voltage, 3));
   digitalWrite(enable, LOW);
   delay(1000);
