@@ -1,5 +1,6 @@
+import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -22,7 +23,7 @@ import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpContext;
 
 public class Server
-{
+{	
     public static void main(String[] args) throws Exception
     {
     	//initialize log
@@ -38,6 +39,7 @@ public class Server
         server.start();
         System.out.println("Started server.");
     }
+    
 
     static class MyHandler implements HttpHandler
     {
@@ -74,17 +76,50 @@ public class Server
             }
             else
             {
-              // Object exists and is a file: accept with response code 200.
-              t.sendResponseHeaders(200, 0);
-              OutputStream os = t.getResponseBody();
-              FileInputStream fs = new FileInputStream(file);
-              final byte[] buffer = new byte[0x10000];
-              int count = 0;
-              while ((count = fs.read(buffer)) >= 0) {
-                os.write(buffer,0,count);
+              // Object exists and is a file
+              //read log file and create HTML table out of it
+              String response = "<!DOCTYPE HTML><html><head><title>Sensor Readings</title>";
+              //CSS
+              response += "<style>p {font-family: Georgia, Tahoma, Verdana, Serif; font-size: 18px; margin-left: 5%; margin-right: 5%; text-align: center;}";
+              response += "h1 { text-align: center;}";
+              response += "table.center { margin-left:auto; margin-right:auto;}</style>";
+              
+              response +="</head><body><h1>Sensor Readings</h1>";
+              
+              //get current timestamp
+              DateFormat dateFormat = new SimpleDateFormat("MM/dd/yyyy HH:mm:ss");
+         	  Date date = new Date();
+         	  response += "<p>" + "Last retrieved at: " + dateFormat.format(date) + "</p>";
+         	  
+         	  response += "<table border=\"1\" class=\"center\">";
+         	  response += "<tr><td>Brightness</td><td>Moisture</td><td>pH</td><td>Temperature</td></tr>";
+              //read each line of the file
+         	  BufferedReader br = new BufferedReader(new FileReader(path));
+              try {
+            	  String line = br.readLine();
+                  while (line != null) {
+                	  	//split each key value pair (comma-separated)
+                    	String[] pairs = line.split(",");
+                    	String cell = "";
+                    	response += "<tr>";
+                    	for (int i = 0; i < pairs.length; i++)
+                    	{
+                    		//split the key and value of this pair and get the value
+                    		cell = pairs[i].split("=")[1];
+                    		response += "<td>" + cell + "</td>";
+                    	}
+                     	response += "</tr>";
+                     	//read the next line
+                        line = br.readLine();
+                  }
+              } finally {
+                  br.close();
               }
-              fs.close();
-              os.close();
+              response += "</table></body></html>";
+              t.sendResponseHeaders(200, response.length());
+              OutputStream os = t.getResponseBody();
+              os.write(response.getBytes());
+              os.close(); 
             }
         }
         
@@ -93,13 +128,6 @@ public class Server
         {
         	System.out.println("Handling POST request.");
             String response = "";
-
-     	    //Going to let Arduino send time rather than log time received
-            /*
-     	    DateFormat dateFormat = new SimpleDateFormat("MM/dd/yyyy HH:mm:ss");
-     	    Date date = new Date();
-     	    response += "(" + dateFormat.format(date) + ") ";
-     	    */
      	    
      	    //iterate through map
             Map params = (Map)t.getAttribute("parameters");
@@ -108,7 +136,7 @@ public class Server
             {
                 String key = iterator.next().toString();
                 String value = params.get(key).toString();
-                response += key + ": " + value + " | ";
+                response += key + "=" + value + ",";
                 System.out.println(key + ": " + value);
             }
             
