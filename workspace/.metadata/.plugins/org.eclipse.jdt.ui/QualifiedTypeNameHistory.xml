@@ -16,4 +16,6 @@
 <fullyQualifiedTypeName name="java.text.DateFormat"/>
 <fullyQualifiedTypeName name="java.util.Date"/>
 <fullyQualifiedTypeName name="java.text.SimpleDateFormat"/>
+<fullyQualifiedTypeName name="java.io.BufferedReader"/>
+<fullyQualifiedTypeName name="java.io.FileReader"/>
 </qualifiedTypeNameHistroy>
