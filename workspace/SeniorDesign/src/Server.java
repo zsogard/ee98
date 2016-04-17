@@ -92,30 +92,56 @@ public class Server
          	  response += "<p>" + "Last retrieved at: " + dateFormat.format(date) + "</p>";
          	  
          	  response += "<table border=\"1\" class=\"center\">";
-         	  response += "<tr><td>Brightness</td><td>Moisture</td><td>pH</td><td>Temperature</td></tr>";
+         	  response += "<tr><td>Time</td><td>Brightness</td><td>Moisture</td><td>pH</td><td>Temperature</td></tr>";
               //read each line of the file
          	  BufferedReader br = new BufferedReader(new FileReader(path));
-              try {
+         	  boolean lowBattery = false;
+              try
+              {
             	  String line = br.readLine();
-                  while (line != null) {
+                  while (line != null)
+                  {
                 	  	//split each key value pair (comma-separated)
                     	String[] pairs = line.split(",");
-                    	String cell = "";
+                    	String value = "";
+                    	String key = "";
                     	response += "<tr>";
                     	for (int i = 0; i < pairs.length; i++)
                     	{
                     		//split the key and value of this pair and get the value
-                    		cell = pairs[i].split("=")[1];
-                    		response += "<td>" + cell + "</td>";
+                    		key = pairs[i].split("=")[0];
+                    		value = pairs[i].split("=")[1];
+                    		if (key.equalsIgnoreCase("lowbat"))
+                    		{
+                    			//for the lowbat pair, don't put it in the table
+                    			//instead, set a flag to make display warning text
+                    			lowBattery = value.equalsIgnoreCase("true");
+                    		}
+                    		else
+                    		{
+                        		response += "<td>" + value + "</td>";
+                    		}
+
                     	}
                      	response += "</tr>";
                      	//read the next line
                         line = br.readLine();
                   }
-              } finally {
+              }
+              catch (Exception e)
+              {
+            	  
+              }
+              finally
+              {
                   br.close();
               }
-              response += "</table></body></html>";
+              response += "</table>"; //end of table
+              if (lowBattery)
+              {
+            	  response += "<p style=\"color:red;\">WARNING: Low battery.</p>";
+              }
+              response += "</body></html>";
               t.sendResponseHeaders(200, response.length());
               OutputStream os = t.getResponseBody();
               os.write(response.getBytes());
