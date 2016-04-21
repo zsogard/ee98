@@ -4,14 +4,12 @@
 #include <Wire.h>
 #include "LowPower.h"
 
-boolean debug = false; //true: Serial works, LowPower disabled
+boolean debug = true; //true: Serial works, LowPower disabled
                       //false: Serial doesn't work, LowPower enabled
                       //TODO: find a way for both to work
 boolean quickSleep = true; //true: sleep for 8 seconds
                            //false: sleep for an hour
-String ipaddr = "130.64.161.215";
-char params[100];
-char httpDestination[100];
+String ipaddr = "192.168.108.42";
 
 HttpClient client;
 String filename = "/mnt/sda1/arduino/www/log.txt";
@@ -19,24 +17,24 @@ char path[30];
 const float BATTERY_THRESHOLD = 6.00;
 
 //ALL THE PINS
-int tempPin = A0;
-int tempEnable = 13;
-int lightPin = A1; float light_resistor = 1000.0;
-int lightEnable = 12;
-int moistureEnable = 5;
-int phPin = A2;
-int phEnable = 11;
-int batteryPin = A3;
-int batteryEnable = 10;
-int lininoPin = A5;
+const int tempPin = A0;
+const int tempEnable = 13;
+const int lightPin = A1; float light_resistor = 1000.0;
+const int lightEnable = 12;
+const int moistureEnable = 5;
+const int phPin = A2;
+const int phEnable = 11;
+const int batteryPin = A3;
+const int batteryEnable = 10;
+const int lininoPin = A5;
 
 //EC Pins
 const int tone_pin = 7;
 const int vx_high = A6; //digital pin 4
 const int vx_low = A7; //digital pin 6
 //int rx_high = A4; //not needed?
-int ecEnablePMOS = 8;
-int ecEnableNMOS = 9;
+const int ecEnablePMOS = 8;
+const int ecEnableNMOS = 9;
 
 //DON'T USE PINS 2 OR 3 (used for I2C)
 
@@ -97,9 +95,6 @@ void loop()
   float temp_voltage = (analogRead(tempPin)*5/1023.0)*1000;
   float temp = (temp_voltage-500)/9.3;
   digitalWrite(tempEnable, LOW);
-  Serial.print("Temperature: ");
-  Serial.print(temp, 2);
-  Serial.print(" C");
 
   //brightness
   digitalWrite(lightEnable, HIGH); delay(1);
@@ -107,24 +102,17 @@ void loop()
   float light_current = light_voltage/light_resistor * pow(10,6);
   float brightness = light_current / 2.5;
   digitalWrite(lightEnable, LOW);
-  Serial.print("\tBrightness: ");
-  Serial.print(brightness, 2);
-  Serial.print(" lux");
 
   //moisture
   digitalWrite(moistureEnable, HIGH); delay(1);
   int moisture = 0; //readI2CRegister16bit(SENS_ADDR, GET_CAP); //UNCOMMENT
   digitalWrite(moistureEnable, LOW);
-  Serial.print("\tMoisture: ");
-  Serial.print(moisture);
 
   //pH
   digitalWrite(phEnable, HIGH); delay(1);
   float phVoltage = analogRead(phPin) * 5.0/1024;
   float ph = 3.0 * phVoltage + 1.3;
   digitalWrite(phEnable, LOW);
-  Serial.print("\tpH: "); 
-  Serial.print(ph, 2);
 
   //EC
   digitalWrite(ecEnablePMOS, LOW);
@@ -133,120 +121,42 @@ void loop()
   double ec = getEC();
   digitalWrite(ecEnablePMOS, HIGH);
   digitalWrite(ecEnableNMOS, LOW);
-  Serial.print("\tEC: ");
-  Serial.print(ec, 2);
   
 
   //battery reading
   digitalWrite(batteryEnable, HIGH);
   delay(1); //let the transistor have time to turn on, 1ms should be enough
   float batteryVoltage = analogRead(batteryPin) * (5.0/1024.0) * 2; //multiply by 2 to get back original value before voltage divider
-  Serial.print("\tBattery:  ");
-  Serial.print(batteryVoltage, 2);
   digitalWrite(batteryEnable, LOW); //shut transistor off
 
   String lowbat_str = "";
   if (batteryVoltage < BATTERY_THRESHOLD)
   {
-    lowbat_str = "lowbat=true&";
+    lowbat_str.concat("&lowbat=true");
   }
   else
   {
-    lowbat_str = "lowbat=false&";
+    lowbat_str.concat("&lowbat=false");
   }
 
   //Create params string
-  String time = "time=" + getTimeStamp() + "&";
-  String temp_str = "temp=" + String(temp, 2);     
-  String brightness_str = "brightness=" + String(brightness, 2) + "&";
-  String moist_str = "moisture=" + String(moisture) + "&";
-  String ph_str = "ph=" + String(ph, 2) + "&";
-  String ec_str = "ec=" + String(ec, 2) + "&";
-  int idx = 0;
-  for (int i = 0; i < time.length(); i++)
-  {
-    params[idx] = time[i];
-    idx++;
-  }
-  for (int i = 0; i < lowbat_str.length(); i++)
-  {
-    params[idx] = lowbat_str[i];
-    idx++;
-  }
-  for (int i = 0; i < brightness_str.length(); i++)
-  {
-    params[idx] = brightness_str[i];
-    idx++;
-  }
-  for (int i = 0; i < ec_str.length(); i++)
-  {
-    params[idx] = ec_str[i];
-    idx++;
-  }
-  for (int i = 0; i < moist_str.length(); i++)
-  {
-    params[idx] = moist_str[i];
-    idx++;
-  }
-  for (int i = 0; i < ph_str.length(); i++)
-  {
-    params[idx] = ph_str[i];
-    idx++;
-  }
-  for (int i = 0; i < temp_str.length(); i++)
-  {
-    params[idx] = temp_str[i];
-    idx++;
-  }
+
+  String params = "time=";
+  params.concat(getTimeStamp());
+  params.concat(lowbat_str);
+  params.concat("&brightness=");
+  params.concat(String(brightness, 2));
+  params.concat("&ec=");
+  params.concat(String(ec, 2));
+  params.concat("&moisture=");
+  params.concat(String(moisture, 2));
+  params.concat("&ph=");
+  params.concat(String(ph, 2));
+  params.concat("&temp=");
+  params.concat(String(temp, 2));
 
   //params = "time=" + time + "&lowbat=" + lowbat_str + "&brightness=" + brightness_str + "&ec=" + ec_str + "&moisture=" + moist_str + "&ph=" + ph_str + "&temp=" + temp_str;
-  /*
-  Serial.println(params);
-  String first = "http://";
-  Serial.println(first);
-  String second = ipaddr;
-  Serial.println(second);
-  String third = ":8000?";
-  Serial.println(third);
-  String fourth = params;
-  Serial.println(fourth);
-  String everything = first;
-  everything += second;
-  Serial.println(everything);
-  everything += third;
-  Serial.println(everything);
-  everything += fourth;
-  Serial.println(everything);
-  */
-
-  int idx2 = 0;
   
-  String http = "http://";
-  String port = ":8000?";
-  for (int i = 0; i < http.length(); i++)
-  {
-    httpDestination[idx2] = http[i];
-    idx2++;
-  }
-  for (int i = 0; i < ipaddr.length(); i++)
-  {
-    httpDestination[idx2] = ipaddr[i];
-    idx2++;
-  }
-  for (int i = 0; i < port.length(); i++)
-  {
-    httpDestination[idx2] = port[i];
-    idx2++;
-  }
-  for (int i = 0; i < idx; i++)
-  {
-    httpDestination[idx2] = params[i];
-    idx2++;
-  }
-  httpDestination[idx2] = '\0';
-
-  //httpDestination = "http://" + ipaddr + ":8000?" + params + '\0';
-  Serial.println(httpDestination);
   //Serial.println(params);
   //Check if data from log needs to be written
   if (FileSystem.exists(path))
@@ -265,15 +175,15 @@ void loop()
     }
   }
 
-  Serial.println("About to POST");
-  if (httpPost(params) != 0)
+  Serial.println("About to GET");
+  if (httpGet(params) != 0)
   {
     //If unsuccessful, write data locally to SD card instead
     Serial.println("Connection failed, writing to SD card");
     File logFile = FileSystem.open(path, FILE_APPEND);
     if (logFile)
     {
-      logFile.print(params + '\n'); //not using println because we don't want \r
+      logFile.print(params.concat('\n')); //not using println because we don't want \r
       logFile.close();
       Serial.println(params);
     }
@@ -300,7 +210,7 @@ void loop()
       Serial.println("Sleeping for 8s.");
       Serial.flush();
       delay(1); //flush is async, so we need to delay for a moment to let it flush the message to USB before we shut the arduino off
-      //LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // turns Arduino 32U4 off ~ 15 mA //UNCOMMENT
+      LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // turns Arduino 32U4 off ~ 15 mA
       delay(8000);
     }
     else
@@ -343,8 +253,8 @@ boolean flushFile(File file)
       line = file.readStringUntil('\n');
       Serial.println(line);       
       if (line.equals("")) break;        
-      //Send HTTP POST
-      if (httpPost(line) != 0)
+      //Send HTTP GET
+      if (httpGet(line) != 0)
       {
         success = false;
         break;
@@ -362,27 +272,18 @@ boolean flushFile(File file)
 }
 
 //returns 0 on success
-int httpPost(String params)
+int httpGet(String params)
 {
-  Serial.println("Sending HTTP POST.");
-  Serial.println("This is definitely different code.");
-  //params = "somethingdifferent";
-
+  Serial.println("Sending HTTP GET.");
+  String httpDestination = "http://";
+  httpDestination.concat(ipaddr);
+  httpDestination.concat(":8000?");
+  httpDestination.concat(params);
   
-  String httpBody = "";
-  /*
-  String httpDestination = "";
-  httpDestination = "http://" + ipaddr + ":8000?" + params + '\0';
-  */
+  Serial.println(httpDestination);
 
-  Serial.println(ipaddr);
-  Serial.println(params);
-  //Serial.println(len1);
- // Serial.println("POTATO");
-  Serial.println(httpDestination); //DOESN'T PRINT?!?!?!?
- // Serial.println("potato");
-
-  int returnCode = client.post(httpDestination, httpBody);
+  int returnCode = client.get(httpDestination);
+  Serial.println(returnCode);
   String response = "";
 
   // if there are incoming bytes available
@@ -393,7 +294,6 @@ int httpPost(String params)
     Serial.print(c);
   }
   Serial.flush();
-
   Serial.println();
   
   return returnCode;
@@ -401,13 +301,11 @@ int httpPost(String params)
 
 String getTimeStamp()
 {
-  Serial.println("Getting timestamp.");
   String result;
   Process time;
   time.begin("date");
   time.addParameter("+%D-%T");  
   time.run(); 
-  Serial.println("here2");
   while(time.available()>0)
   {
     char c = time.read();

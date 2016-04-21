@@ -4,6 +4,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -47,21 +48,21 @@ public class Server
         @Override
         public void handle(HttpExchange t) throws IOException
         {
-        	
-            if ("get".equalsIgnoreCase(t.getRequestMethod()))
+            URI requestedUri = t.getRequestURI();
+            String query = requestedUri.getRawQuery();
+            if (query == null)
             {
-            	handleGet(t);
-
+            	servePage(t);
             }
-            else if ("post".equalsIgnoreCase(t.getRequestMethod()))
+            else
             {
-            	handlePost(t);
+            	handleArduino(t);
             }
         }
         
-        private void handleGet(HttpExchange t) throws IOException
+        private void servePage(HttpExchange t) throws IOException
         {
-        	System.out.println("Handling GET request.");
+        	System.out.println("Serving page.");
             File file = new File(path);
             //URI uri = t.getRequestURI();
             //File file = new File(root + uri.getPath()).getCanonicalFile();
@@ -150,9 +151,9 @@ public class Server
         }
         
         
-        private void handlePost(HttpExchange t) throws IOException
+        private void handleArduino(HttpExchange t) throws IOException
         {
-        	System.out.println("Handling POST request.");
+        	System.out.println("Handling Arduino.");
             String response = "";
      	    
      	    //iterate through map

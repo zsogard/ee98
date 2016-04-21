@@ -23,14 +23,14 @@ public class ParameterFilter extends Filter
     public void doFilter(HttpExchange exchange, Chain chain)
         throws IOException
     {
-        if ("post".equalsIgnoreCase(exchange.getRequestMethod()))
+        if ("get".equalsIgnoreCase(exchange.getRequestMethod()))
         {
-        	parsePostParameters(exchange);
+        	parseGetParameters(exchange);
         }
         chain.doFilter(exchange);
     }
 
-    private void parsePostParameters(HttpExchange exchange)
+    private void parseGetParameters(HttpExchange exchange)
         throws IOException
     {		
     		//create key/value map, parse query string, add map to the httpexchange
@@ -45,7 +45,6 @@ public class ParameterFilter extends Filter
      private void parseQuery(String query, Map parameters)
          throws UnsupportedEncodingException
      {
-    	 System.out.println(query);
          if (query != null) {
              String pairs[] = query.split("[&]");
 
