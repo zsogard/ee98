@@ -4,22 +4,24 @@
 #include <Wire.h>
 #include "LowPower.h"
 
-boolean debug = true; //true: Serial works, LowPower disabled
-                      //false: Serial doesn't work, LowPower enabled
-                      //TODO: find a way for both to work
-boolean quickSleep = true; //true: sleep for 8 seconds
-                           //false: sleep for an hour
-String ipaddr = "192.168.108.42";
+boolean debug = false; //true: Serial works, LowPower disabled
+//false: Serial doesn't work, LowPower enabled
+//TODO: find a way for both to work
+boolean quickSleep = false; //true: sleep for 8 seconds
+                            //false: sleep for an hour
+String ipaddr = "10.3.13.205";
 
 HttpClient client;
 String filename = "/mnt/sda1/arduino/www/log.txt";
 char path[30];
 const float BATTERY_THRESHOLD = 6.00;
+String params = "";
 
 //ALL THE PINS
 const int tempPin = A0;
-const int tempEnable = 13;
-const int lightPin = A1; float light_resistor = 1000.0;
+//const int tempEnable = 13;
+const int lightPin = A1; 
+float light_resistor = 5000.0;
 const int lightEnable = 12;
 const int moistureEnable = 5;
 const int phPin = A2;
@@ -56,17 +58,18 @@ void setup()
   pinMode(lininoPin, OUTPUT);
   digitalWrite(lininoPin, HIGH); //start linino before we do anything else!
   Serial.begin(9600);
-  while (!Serial);
+  //while (!Serial);
   Serial.println("Waiting a few seconds");
   delay(10000); //not sure if needed to prevent Bridge.begin from hanging?
   Serial.println("Starting Bridge");
   Bridge.begin();
   Serial.println("Starting Filesystem");
   FileSystem.begin();
+  Wire.begin();
 
   //set pin modes
   pinMode(tempPin, INPUT);
-  pinMode(tempEnable, OUTPUT);
+  //pinMode(tempEnable, OUTPUT);
   pinMode(lightPin, INPUT);
   pinMode(lightEnable, OUTPUT);
   pinMode(moistureEnable, OUTPUT);
@@ -91,26 +94,28 @@ void loop()
   //wake up and take readings
   //temp
   Serial.println(path);
-  digitalWrite(tempEnable, HIGH); delay(1);
-  float temp_voltage = (analogRead(tempPin)*5/1023.0)*1000;
-  float temp = (temp_voltage-500)/9.3;
-  digitalWrite(tempEnable, LOW);
+  digitalWrite(lightEnable, HIGH); delay(1); //light enable enables both temp and brightness
+  //digitalWrite(tempEnable, HIGH); delay(1);
+  float temp_voltage = (analogRead(tempPin) * 5 / 1023.0) * 1000;
+  float temp = (temp_voltage - 500) / 9.3;
+  //digitalWrite(tempEnable, LOW);
 
   //brightness
-  digitalWrite(lightEnable, HIGH); delay(1);
-  float light_voltage = analogRead(lightPin)*5/1023.0;
-  float light_current = light_voltage/light_resistor * pow(10,6);
+  
+  float light_voltage = analogRead(lightPin) * 5 / 1023.0;
+  float light_current = light_voltage / light_resistor * pow(10, 6);
   float brightness = light_current / 2.5;
   digitalWrite(lightEnable, LOW);
 
   //moisture
   digitalWrite(moistureEnable, HIGH); delay(1);
-  int moisture = 0; //readI2CRegister16bit(SENS_ADDR, GET_CAP); //UNCOMMENT
+  int cap_val = readI2CRegister16bit(SENS_ADDR, GET_CAP);
+  double moisture = (cap_val-293.5)/807.2;
   digitalWrite(moistureEnable, LOW);
 
   //pH
   digitalWrite(phEnable, HIGH); delay(1);
-  float phVoltage = analogRead(phPin) * 5.0/1024;
+  float phVoltage = analogRead(phPin) * 5.0 / 1024;
   float ph = 3.0 * phVoltage + 1.3;
   digitalWrite(phEnable, LOW);
 
@@ -121,12 +126,12 @@ void loop()
   double ec = getEC();
   digitalWrite(ecEnablePMOS, HIGH);
   digitalWrite(ecEnableNMOS, LOW);
-  
+
 
   //battery reading
   digitalWrite(batteryEnable, HIGH);
   delay(1); //let the transistor have time to turn on, 1ms should be enough
-  float batteryVoltage = analogRead(batteryPin) * (5.0/1024.0) * 2; //multiply by 2 to get back original value before voltage divider
+  float batteryVoltage = analogRead(batteryPin) * (5.0 / 1024.0) * 2; //multiply by 2 to get back original value before voltage divider
   digitalWrite(batteryEnable, LOW); //shut transistor off
 
   String lowbat_str = "";
@@ -141,7 +146,7 @@ void loop()
 
   //Create params string
 
-  String params = "time=";
+  params = "time=";
   params.concat(getTimeStamp());
   params.concat(lowbat_str);
   params.concat("&brightness=");
@@ -156,16 +161,15 @@ void loop()
   params.concat(String(temp, 2));
 
   //params = "time=" + time + "&lowbat=" + lowbat_str + "&brightness=" + brightness_str + "&ec=" + ec_str + "&moisture=" + moist_str + "&ph=" + ph_str + "&temp=" + temp_str;
-  
+
   //Serial.println(params);
   //Check if data from log needs to be written
   if (FileSystem.exists(path))
   {
     Serial.println("Attempting to flush log.");
     //Flush lines from log and reset log
-    File logFile = FileSystem.open(path, FILE_READ);
     //If successful, remove log
-    if(flushFile(logFile))
+    if (flushFile())
     {
       FileSystem.remove(path);
     }
@@ -176,16 +180,17 @@ void loop()
   }
 
   Serial.println("About to GET");
-  if (httpGet(params) != 0)
+  if (httpGet() != 0)
   {
     //If unsuccessful, write data locally to SD card instead
     Serial.println("Connection failed, writing to SD card");
     File logFile = FileSystem.open(path, FILE_APPEND);
     if (logFile)
     {
-      logFile.print(params.concat('\n')); //not using println because we don't want \r
-      logFile.close();
       Serial.println(params);
+      params.concat('\n');
+      logFile.print(params); //not using println because we don't want \r
+      logFile.close();
     }
     else
     {
@@ -202,8 +207,8 @@ void loop()
   else
   {
     Serial.println("Shutting Linino off.");
-    digitalWrite(lininoPin, LOW);  // turns Linino off ~ 50 mA 
-                
+    //digitalWrite(lininoPin, LOW);  // turns Linino off ~ 50 mA
+
     // Enter power down state for 8 s with ADC and BOD module disabled
     if (quickSleep)
     {
@@ -225,14 +230,14 @@ void loop()
         LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
       }
     }
-    digitalWrite(lininoPin, HIGH); // turns Linino back on ~ 225-300 mA
+    //digitalWrite(lininoPin, HIGH); // turns Linino back on ~ 225-300 mA
     //need to delay here to let Linino wake up
     //It takes 75s between plugging Yun in and ability to ssh in again
     //so I'll assume that's how long is needed after turning the Linino on
     //before it's ready to make HTTP requests again
     unsigned long startMillis = millis(); //Can only delay() for 65535 which is slightly too short
     while (millis() - startMillis < 75000); //So we have to do it this way instead :)
-     
+
     Serial.println("Starting Bridge");
     Bridge.begin();
     Serial.println("Starting Filesystem");
@@ -241,26 +246,41 @@ void loop()
   Serial.println("Finished delay/sleep");
 }
 
-boolean flushFile(File file)
+boolean flushFile()
 {
+  File file = FileSystem.open(path, FILE_READ);
   boolean success = true;
+  int lineNum = 0;
   if (file)
   {
     // Send one line at a time
-    String line = "";
     while (file.available() != 0)
-    {     
-      line = file.readStringUntil('\n');
-      Serial.println(line);       
-      if (line.equals("")) break;        
+    {
+      Serial.println("potato");
+      for (int i = 0; i < lineNum; i++)
+      {
+        Serial.println("here");
+        params = file.readStringUntil('\n');
+        //while (file.read() != '\n');
+      }
+      //params = file.readStringUntil('\n');
+      file.close();
+      Serial.println("Flushing line");
+      Serial.println(params);
+      if (params.equals("")) break;
       //Send HTTP GET
-      if (httpGet(line) != 0)
+      if (httpGet() != 0)
       {
         success = false;
         break;
       }
+      else
+      {
+        lineNum++;
+      }
+      File file = FileSystem.open(path, FILE_READ);
     }
-    file.close();
+    //file.close();
   }
   else
   {
@@ -272,14 +292,14 @@ boolean flushFile(File file)
 }
 
 //returns 0 on success
-int httpGet(String params)
+int httpGet()
 {
   Serial.println("Sending HTTP GET.");
   String httpDestination = "http://";
   httpDestination.concat(ipaddr);
   httpDestination.concat(":8000?");
   httpDestination.concat(params);
-  
+
   Serial.println(httpDestination);
 
   int returnCode = client.get(httpDestination);
@@ -295,7 +315,7 @@ int httpGet(String params)
   }
   Serial.flush();
   Serial.println();
-  
+
   return returnCode;
 }
 
@@ -304,15 +324,15 @@ String getTimeStamp()
   String result;
   Process time;
   time.begin("date");
-  time.addParameter("+%D-%T");  
-  time.run(); 
-  while(time.available()>0)
+  time.addParameter("+%D-%T");
+  time.run();
+  while (time.available() > 0)
   {
     char c = time.read();
-    if(c != '\n')
+    if (c != '\n')
       result += c;
   }
-  
+
   return result;
 }
 
@@ -335,14 +355,14 @@ unsigned int readI2CRegister16bit(int addr, int reg) {
   return t;
 }
 
-void findAddress(){
+void findAddress() {
   byte error, address;
   int nDevices;
 
   Serial.println("Scanning...");
 
   nDevices = 0;
-  for(address = 1; address < 127; address++ ){
+  for (address = 1; address < 127; address++ ) {
     // The i2c_scanner uses the return value of
     // the Write.endTransmisstion to see if
     // a device did acknowledge to the address.
@@ -352,20 +372,20 @@ void findAddress(){
     error = Wire.endTransmission();
     Serial.print("ERROR: ");
     Serial.println(error);
-    if (error == 0){
+    if (error == 0) {
       Serial.print("I2C device found at address 0x");
-      if (address<16)
+      if (address < 16)
         Serial.print("0");
-      Serial.print(address,HEX);
+      Serial.print(address, HEX);
       Serial.println("  !");
       nDevices++;
     }
-    else if (error==4){
+    else if (error == 4) {
       Serial.print("Unknown error at address 0x");
-      if (address<16)
+      if (address < 16)
         Serial.print("0");
-      Serial.println(address,HEX);
-    }    
+      Serial.println(address, HEX);
+    }
   }
   if (nDevices == 0)
     Serial.println("No I2C devices found\n");
@@ -380,10 +400,10 @@ void findAddress(){
 const double k_cell = 210.5;
 //const double ft[] = {1.163, 1.136, 1.112, 1.087}
 
-double getEC(){
+double getEC() {
   double R1 = 1000.0; //1kOhms
   double Vin = 2.5;
-  double i1 = Vin/R1;
+  double i1 = Vin / R1;
   double vx_30[16], vx_60[16], vx_90[16];
   double sum_vx_30 = 0;
   double sum_vx_60 = 0;
@@ -393,27 +413,27 @@ double getEC(){
   int count_vx_90 = 0;
   tone(tone_pin, 35);
   delay(4000);
-//  Serial.println();
-//  Serial.print("@35 Hz: ");
-  for(int i = 0; i < 16; i++){
+  //  Serial.println();
+  //  Serial.print("@35 Hz: ");
+  for (int i = 0; i < 16; i++) {
     int curr_vx_30 = analogRead(vx_high) - analogRead(vx_low);
-    vx_30[i] = map(curr_vx_30, 0, 1023, 0, 5000)/1000.0;
-//    Serial.print(result_30[i],4);
-//    Serial.print("\t");
-//    Serial.println(vx_30[i],4);
+    vx_30[i] = map(curr_vx_30, 0, 1023, 0, 5000) / 1000.0;
+    //    Serial.print(result_30[i],4);
+    //    Serial.print("\t");
+    //    Serial.println(vx_30[i],4);
     delayMicroseconds(6893);
     //delayMicroseconds(14186);
   }
-//  Serial.println();
-//  Serial.print("@60 Hz: ");
+  //  Serial.println();
+  //  Serial.print("@60 Hz: ");
   tone(tone_pin, 60);
   delay(3000);
-  for(int i = 0; i < 16; i++){
+  for (int i = 0; i < 16; i++) {
     int curr_vx_60 = analogRead(vx_high) - analogRead(vx_low);
-    vx_60[i] = map(curr_vx_60, 0, 1023, 0, 5000)/1000.0;
-//    Serial.print(result_60[i],4);
-//    Serial.print("\t");
-//    Serial.println(vx_60[i],4);
+    vx_60[i] = map(curr_vx_60, 0, 1023, 0, 5000) / 1000.0;
+    //    Serial.print(result_60[i],4);
+    //    Serial.print("\t");
+    //    Serial.println(vx_60[i],4);
     delayMicroseconds(3916);
     //delayMicroseconds(8233);
   }
@@ -421,16 +441,16 @@ double getEC(){
   //Serial.print("@90 Hz: ");
   tone(tone_pin, 90);
   delay(3000);
-  for(int i = 0; i < 16; i++){
+  for (int i = 0; i < 16; i++) {
     int curr_vx_90 = analogRead(vx_high) - analogRead(vx_low);
-    vx_90[i] = map(curr_vx_90, 0, 1023, 0, 5000)/1000.0; 
-//    Serial.print("\t");
-//    Serial.println(vx_90[i],4);
+    vx_90[i] = map(curr_vx_90, 0, 1023, 0, 5000) / 1000.0;
+    //    Serial.print("\t");
+    //    Serial.println(vx_90[i],4);
     delayMicroseconds(2478);
   }
   noTone(tone_pin);
   //assume that results are gonna be bipolar square waves
-  for(int i = 0; i < 16; i++){
+  for (int i = 0; i < 16; i++) {
     sum_vx_30 += abs(vx_30[i]);
     count_vx_30++;
     sum_vx_60 += abs(vx_60[i]);
@@ -438,52 +458,52 @@ double getEC(){
     sum_vx_90 += abs(vx_90[i]);
     count_vx_90++;
   }
-  double v2x_30 = sum_vx_30/count_vx_30;
-//  Serial.println();
-//  Serial.print("V2: ");
-//  Serial.print("\t");
-//  Serial.println(v2x_30);
-  double v2x_60 = sum_vx_60/count_vx_60;
-//  Serial.print("\t");
-//  Serial.println(v2x_60);
-  double v2x_90 = sum_vx_90/count_vx_90;
-//  Serial.print("\t");
-//  Serial.println(v2x_90);  
-//assume v1 is +2.5V to -2.5V
-  double r2x_30 = v2x_30/i1;
-  double r2x_60 = v2x_60/i1;
-  double r2x_90 = v2x_90/i1;
-//  Serial.println();
-//  Serial.print("R2x Vals: ");
-//  Serial.print("\t");
-//  Serial.print(r2x_30);
-//  Serial.print("\t");
-//  Serial.print(r2x_60);
-//  Serial.print("\t");
-//  Serial.print(r2x_90);
-//  Serial.print("\t");
-  double ECx_30 = 1/r2x_30;
-  double ECx_60 = 1/r2x_60;
-  double ECx_90 = 1/r2x_90;
-//  Serial.println();
-//  Serial.print("ECx Vals: ");
-//  Serial.print("\t");
-//  Serial.print(ECx_30, 6);
-//  Serial.print("\t");
-//  Serial.print(ECx_60, 6);
-//  Serial.print("\t");
-//  Serial.print(ECx_90, 6);
-//  Serial.print("\t");
-  double avg_ECx = (ECx_30 + ECx_60 + ECx_90)/3;
-  double avg_freq = (35 + 60 + 90)/3;
+  double v2x_30 = sum_vx_30 / count_vx_30;
+  //  Serial.println();
+  //  Serial.print("V2: ");
+  //  Serial.print("\t");
+  //  Serial.println(v2x_30);
+  double v2x_60 = sum_vx_60 / count_vx_60;
+  //  Serial.print("\t");
+  //  Serial.println(v2x_60);
+  double v2x_90 = sum_vx_90 / count_vx_90;
+  //  Serial.print("\t");
+  //  Serial.println(v2x_90);
+  //assume v1 is +2.5V to -2.5V
+  double r2x_30 = v2x_30 / i1;
+  double r2x_60 = v2x_60 / i1;
+  double r2x_90 = v2x_90 / i1;
+  //  Serial.println();
+  //  Serial.print("R2x Vals: ");
+  //  Serial.print("\t");
+  //  Serial.print(r2x_30);
+  //  Serial.print("\t");
+  //  Serial.print(r2x_60);
+  //  Serial.print("\t");
+  //  Serial.print(r2x_90);
+  //  Serial.print("\t");
+  double ECx_30 = 1 / r2x_30;
+  double ECx_60 = 1 / r2x_60;
+  double ECx_90 = 1 / r2x_90;
+  //  Serial.println();
+  //  Serial.print("ECx Vals: ");
+  //  Serial.print("\t");
+  //  Serial.print(ECx_30, 6);
+  //  Serial.print("\t");
+  //  Serial.print(ECx_60, 6);
+  //  Serial.print("\t");
+  //  Serial.print(ECx_90, 6);
+  //  Serial.print("\t");
+  double avg_ECx = (ECx_30 + ECx_60 + ECx_90) / 3;
+  double avg_freq = (35 + 60 + 90) / 3;
   //x-axis is frequency, y-axis is EC
-  double sum_numx = (ECx_30 - avg_ECx)*(35 - avg_freq) + (ECx_60 - avg_ECx)*(60 - avg_freq) + (ECx_90 - avg_ECx)*(90 - avg_freq);
-  double sum_denx = pow((35 - avg_freq),2) + pow((60 - avg_freq),2) + pow((90 - avg_freq),2);
+  double sum_numx = (ECx_30 - avg_ECx) * (35 - avg_freq) + (ECx_60 - avg_ECx) * (60 - avg_freq) + (ECx_90 - avg_ECx) * (90 - avg_freq);
+  double sum_denx = pow((35 - avg_freq), 2) + pow((60 - avg_freq), 2) + pow((90 - avg_freq), 2);
   double slope_ECx = sum_numx / sum_denx;
-  double ECx_0 = avg_ECx - slope_ECx*avg_freq;
-//  Serial.print("ECx at 0Hz: ");
-//  Serial.println(ECx_0,4);
-  double EC_noT = k_cell*ECx_0;
+  double ECx_0 = avg_ECx - slope_ECx * avg_freq;
+  //  Serial.print("ECx at 0Hz: ");
+  //  Serial.println(ECx_0,4);
+  double EC_noT = k_cell * ECx_0;
   return EC_noT;
 }
 
