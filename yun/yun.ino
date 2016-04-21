@@ -4,12 +4,12 @@
 #include <Wire.h>
 #include "LowPower.h"
 
-boolean debug = false; //true: Serial works, LowPower disabled
+boolean debug = true; //true: Serial works, LowPower disabled
 //false: Serial doesn't work, LowPower enabled
 //TODO: find a way for both to work
-boolean quickSleep = false; //true: sleep for 8 seconds
+boolean quickSleep = true; //true: sleep for 8 seconds
                             //false: sleep for an hour
-String ipaddr = "10.3.13.205";
+String ipaddr = "10.3.13.142";
 
 HttpClient client;
 String filename = "/mnt/sda1/arduino/www/log.txt";
@@ -94,10 +94,10 @@ void loop()
   //wake up and take readings
   //temp
   Serial.println(path);
-  digitalWrite(lightEnable, HIGH); delay(1); //light enable enables both temp and brightness
+  digitalWrite(lightEnable, HIGH); delay(1000); //light enable enables both temp and brightness
   //digitalWrite(tempEnable, HIGH); delay(1);
-  float temp_voltage = (analogRead(tempPin) * 5 / 1023.0) * 1000;
-  float temp = (temp_voltage - 500) / 9.3;
+  //float temp_voltage = (analogRead(tempPin) * 5 / 1023.0) * 1000;
+  //float temp = (temp_voltage - 500) / 9.3;
   //digitalWrite(tempEnable, LOW);
 
   //brightness
@@ -108,13 +108,15 @@ void loop()
   digitalWrite(lightEnable, LOW);
 
   //moisture
-  digitalWrite(moistureEnable, HIGH); delay(1);
+  digitalWrite(moistureEnable, HIGH); delay(2000);
   int cap_val = readI2CRegister16bit(SENS_ADDR, GET_CAP);
   double moisture = (cap_val-293.5)/807.2;
+  int temp_val = readI2CRegister16bit(SENS_ADDR, GET_TEMP);
+  float temp = temp_val / 10.0;
   digitalWrite(moistureEnable, LOW);
 
   //pH
-  digitalWrite(phEnable, HIGH); delay(1);
+  digitalWrite(phEnable, HIGH); delay(1000);
   float phVoltage = analogRead(phPin) * 5.0 / 1024;
   float ph = 3.0 * phVoltage + 1.3;
   digitalWrite(phEnable, LOW);
@@ -122,7 +124,7 @@ void loop()
   //EC
   digitalWrite(ecEnablePMOS, LOW);
   digitalWrite(ecEnableNMOS, HIGH);
-  delay(1);
+  delay(1000);
   double ec = getEC();
   digitalWrite(ecEnablePMOS, HIGH);
   digitalWrite(ecEnableNMOS, LOW);
@@ -130,7 +132,7 @@ void loop()
 
   //battery reading
   digitalWrite(batteryEnable, HIGH);
-  delay(1); //let the transistor have time to turn on, 1ms should be enough
+  delay(1000); //let the transistor have time to turn on, 1ms should be enough
   float batteryVoltage = analogRead(batteryPin) * (5.0 / 1024.0) * 2; //multiply by 2 to get back original value before voltage divider
   digitalWrite(batteryEnable, LOW); //shut transistor off
 
@@ -148,6 +150,7 @@ void loop()
 
   params = "time=";
   params.concat(getTimeStamp());
+  //params.concat("test");
   params.concat(lowbat_str);
   params.concat("&brightness=");
   params.concat(String(brightness, 2));
@@ -256,10 +259,8 @@ boolean flushFile()
     // Send one line at a time
     while (file.available() != 0)
     {
-      Serial.println("potato");
       for (int i = 0; i < lineNum; i++)
       {
-        Serial.println("here");
         params = file.readStringUntil('\n');
         //while (file.read() != '\n');
       }

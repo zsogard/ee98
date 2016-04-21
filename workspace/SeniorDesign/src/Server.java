@@ -29,8 +29,8 @@ public class Server
     {
     	//initialize log
     	File f = new File("/home/zach/Desktop/www/log.txt");
-    	f.delete();
-    	f.createNewFile();
+    	//f.delete();
+    	//f.createNewFile();
     	
     	//start server at port 8000, "/"
         HttpServer server = HttpServer.create(new InetSocketAddress(8000), 0);
@@ -85,6 +85,7 @@ public class Server
               response += "h1 { text-align: center;}";
               response += "table.center { margin-left:auto; margin-right:auto;}</style>";
               
+              response += "<meta http-equiv=\"refresh\" content=\"15\" >";
               response +="</head><body><h1>Sensor Readings</h1>";
               
               //get current timestamp
@@ -93,7 +94,7 @@ public class Server
          	  response += "<p>" + "Last retrieved at: " + dateFormat.format(date) + "</p>";
          	  
          	  response += "<table border=\"1\" class=\"center\">";
-         	  response += "<tr><td>Time</td><td>Brightness (lux)</td><td>Electrical Conductivity</td><td>Moisture</td><td>pH</td><td>Temperature (C)</td></tr>";
+         	  response += "<tr><td>Time</td><td>Brightness (lux)</td><td>Electrical Conductivity (mS/cm)</td><td>Moisture (%VWC)</td><td>pH</td><td>Temperature (C)</td></tr>";
               //read each line of the file
          	  BufferedReader br = new BufferedReader(new FileReader(path));
          	  boolean lowBattery = false;
