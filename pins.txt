@@ -1,0 +1,8 @@
+			Analog					Digital
+Temp		A0						13
+Light		A1						12
+Moisture							2, 3, 5
+pH			A2						11
+EC			A4, A6 (4), A7	(6)		7, 8, 9
+Battery		A3						10
+Linino		A5

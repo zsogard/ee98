@@ -92,7 +92,7 @@ public class Server
          	  response += "<p>" + "Last retrieved at: " + dateFormat.format(date) + "</p>";
          	  
          	  response += "<table border=\"1\" class=\"center\">";
-         	  response += "<tr><td>Time</td><td>Brightness</td><td>Moisture</td><td>pH</td><td>Temperature</td></tr>";
+         	  response += "<tr><td>Time</td><td>Brightness (lux)</td><td>Electrical Conductivity</td><td>Moisture</td><td>pH</td><td>Temperature (C)</td></tr>";
               //read each line of the file
          	  BufferedReader br = new BufferedReader(new FileReader(path));
          	  boolean lowBattery = false;
