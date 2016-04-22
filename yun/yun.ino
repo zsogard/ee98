@@ -9,7 +9,7 @@ boolean debug = true; //true: Serial works, LowPower disabled
 //TODO: find a way for both to work
 boolean quickSleep = true; //true: sleep for 8 seconds
                             //false: sleep for an hour
-String ipaddr = "10.3.13.142";
+String ipaddr = "10.3.13.70";
 
 HttpClient client;
 String filename = "/mnt/sda1/arduino/www/log.txt";
@@ -167,8 +167,10 @@ void loop()
 
   //Serial.println(params);
   //Check if data from log needs to be written
+  /*
   if (FileSystem.exists(path))
   {
+  
     Serial.println("Attempting to flush log.");
     //Flush lines from log and reset log
     //If successful, remove log
@@ -181,8 +183,8 @@ void loop()
       Serial.println("Unable to flush log.");
     }
   }
+  */
 
-  Serial.println("About to GET");
   if (httpGet() != 0)
   {
     //If unsuccessful, write data locally to SD card instead
@@ -204,8 +206,8 @@ void loop()
   //delay and sleep
   if (debug)
   {
-    Serial.println("Delay while awake for 8s");
-    delay(8000);
+    Serial.println("Delay while awake for 60s");
+    delay(60000);
   }
   else
   {
