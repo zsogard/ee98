@@ -9,7 +9,7 @@ boolean debug = true; //true: Serial works, LowPower disabled
 //TODO: find a way for both to work
 boolean quickSleep = true; //true: sleep for 8 seconds
                             //false: sleep for an hour
-String ipaddr = "10.3.13.70";
+String ipaddr = "10.3.13.63";
 
 HttpClient client;
 String filename = "/mnt/sda1/arduino/www/log.txt";
@@ -155,7 +155,15 @@ void loop()
   params.concat("&brightness=");
   params.concat(String(brightness, 2));
   params.concat("&ec=");
-  params.concat(String(ec, 2));
+  String ec_str = String(ec, 2);
+  if (ec_str.indexOf("NAN") > -1)
+  {
+    params.concat("0");
+  }
+  else
+  {
+    params.concat(ec_str);
+  }
   params.concat("&moisture=");
   params.concat(String(moisture, 2));
   params.concat("&ph=");
@@ -206,8 +214,8 @@ void loop()
   //delay and sleep
   if (debug)
   {
-    Serial.println("Delay while awake for 60s");
-    delay(60000);
+    Serial.println("Delay while awake for 8s");
+    delay(8000);
   }
   else
   {
