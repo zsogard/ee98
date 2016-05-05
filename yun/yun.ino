@@ -93,7 +93,6 @@ void loop()
 {
   //wake up and take readings
   //temp
-  Serial.println(path);
   digitalWrite(lightEnable, HIGH); delay(1000); //light enable enables both temp and brightness
   //digitalWrite(tempEnable, HIGH); delay(1);
   //float temp_voltage = (analogRead(tempPin) * 5 / 1023.0) * 1000;
@@ -175,7 +174,6 @@ void loop()
 
   //Serial.println(params);
   //Check if data from log needs to be written
-  /*
   if (FileSystem.exists(path))
   {
   
@@ -191,7 +189,6 @@ void loop()
       Serial.println("Unable to flush log.");
     }
   }
-  */
 
   if (httpGet() != 0)
   {
